@@ -33,13 +33,15 @@ const getAssignedStaff = async (companyLocationId) => {
               id
               company {
                 id
-                mainContact {
-                  customer {
-                    id
-                    firstName
-                    lastName
-                    metafield(namespace: "custom", key: "assigned_staff_email"){
-                      jsonValue
+                contacts(first: 10){
+                  nodes{
+                    customer {
+                      id
+                      firstName
+                      lastName
+                      metafield(namespace: "custom", key: "assigned_staff_email"){
+                        jsonValue
+                      }
                     }
                   }
                 }
@@ -58,7 +60,10 @@ const getAssignedStaff = async (companyLocationId) => {
       return [];
     }
 
-    return result.data.companyLocation.company.mainContact.customer.metafield.jsonValue;
+    const contacts =  result.data?.companyLocation?.company?.contacts?.nodes?.map(node => node?.customer?.metafield?.jsonValue);
+    console.log(contacts);
+    const staffEmail = contacts.find(email => email != undefined);
+    return staffEmail;
   } catch (error) {
     console.error("💥 Erreur serveur :", error);
     return [];
@@ -75,12 +80,10 @@ app.post('/assign-staff', async (req, res) => {
   }
 
   const staff = await getAssignedStaff(admin_graphql_api_id);
-  if(!staff) {
-    return res(400).json({error: "No Staff Assigned Yet"});
-  }
   console.log("📋 /Staff  :", staff);
 
-  const staffId = staff == 'megan@oblist.com' ? 789012 : 123456;
+  const staffId = staff == 'megan@oblist.com' ? 'gid://shopify/StaffMember/129852932361' : 'gid://shopify/StaffMember/114304090377';
+  console.log(staffId)
 
   try {
     const endpoint = `https://${process.env.SHOPIFY_STORE_DOMAIN}/admin/api/2025-04/graphql.json`;
@@ -95,6 +98,12 @@ app.post('/assign-staff', async (req, res) => {
         query: `
           mutation companyLocationAssignStaffMembers($companyLocationId: ID!, $staffMemberIds: [ID!]!) {
             companyLocationAssignStaffMembers(companyLocationId: $companyLocationId, staffMemberIds: $staffMemberIds) {
+              companyLocationStaffMemberAssignments {
+                staffMember {
+                  email
+                  id
+                }
+              }
               userErrors {
                 field
                 message
@@ -111,6 +120,13 @@ app.post('/assign-staff', async (req, res) => {
 
     const result = await response.json();
     const errors = result?.data?.companyLocationAssignStaffMembers?.userErrors;
+    const data = result?.data?.companyLocationAssignStaffMembers?.companyLocationStaffMemberAssignments;
+
+    if(result?.errors)
+    {
+      console.error('🛑 Shopify GraphQL errors:', result?.errors);
+      return res.status(500).json({ error: "Erreur d'assignation", details: result?.errors });
+    }
 
     if (errors && errors.length > 0) {
       console.error('🛑 Shopify GraphQL errors:', errors);
