@@ -133,6 +133,8 @@ app.post('/assign-staff', async (req, res) => {
       return res.status(500).json({ error: "Erreur d'assignation", details: errors });
     }
 
+    console.log(data);
+
     console.log("✅ Assignation réussie !");
     res.json({ success: true });
   } catch (error) {
